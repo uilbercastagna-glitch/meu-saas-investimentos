@@ -10,7 +10,7 @@ str_app.set_page_config(page_title="SaaS Análise de Carteira", page_icon="📊"
 
 str_app.title("📊 Agente Profissional de Análise de Carteira")
 str_app.subheader("Ações & FIIs — Mercado Brasileiro")
-str_app.caption(f"Painel Consolidado em: {datetime.now().strftime('%d/%m/%Y')}")
+str_app.caption(f"Painel Atualizado em Tempo Real: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # =====================================================================
 # DOCUMENTAÇÃO: DEFINIÇÃO DOS ATIVOS DA CARTEIRA
@@ -20,106 +20,112 @@ lista_fiis = ["MXRF11.SA", "BTLG11.SA", "CPTS11.SA", "KNSC11.SA", "RBRR11.SA", "
 todos_ativos = lista_acoes + lista_fiis
 
 # =====================================================================
-# DOCUMENTAÇÃO: MOTOR DE CÁLCULO DINÂMICO DE MERCADO
+# DOCUMENTAÇÃO: MOTOR CORE DE PROCESSAMENTO E VALUATION
 # =====================================================================
-@str_app.cache_data(ttl=3600)
-def processar_dados_mercado():
+@str_app.cache_data(ttl=3600)  # Mantém os dados guardados por 1 hora
+def processar_radar_completo():
     data_atual = datetime.now()
     data_30_dias = data_atual - timedelta(days=30)
-    dados_mes = []
+    dados_radar = []
     
     for ticker_sa in todos_ativos:
         nome_limpo = ticker_sa.replace(".SA", "")
         tipo = "Ação" if ticker_sa in lista_acoes else "FII"
         ticker_obj = yf.Ticker(ticker_sa)
         
+        # Puxa o preço de hoje e de 30 dias atrás
         hist = ticker_obj.history(start=data_30_dias.strftime('%Y-%m-%d'), end=data_atual.strftime('%Y-%m-%d'))
         if not hist.empty:
             preco_30_dias = hist['Close'].iloc[0]
             preco_atual = hist['Close'].iloc[-1]
             variacao_mes = ((preco_atual - preco_30_dias) / preco_30_dias) * 100
             
-            dados_mes.append({
+            # Puxa os dividendos dos últimos 12 meses direto do Yahoo Finance
+            dividendos = ticker_obj.dividends
+            dy_calculado = 0.0
+            data_com_estimada = "Consultar RI"
+            
+            if not dividendos.empty:
+                # Filtra os dividendos pagos nos últimos 365 dias
+                ultimos_12m = dividendos[dividendos.index > (datetime.now() - timedelta(days=365))]
+                total_proventos = ultimos_12m.sum()
+                if preco_atual > 0:
+                    dy_calculado = (total_proventos / preco_atual) * 100
+                
+                # Pega a última data com registrada no sistema para referência histórica
+                data_com_estimada = dividendos.index[-1].strftime('%d/%m/%Y')
+
+            dados_radar.append({
                 "Ativo": nome_limpo,
                 "Tipo": tipo,
                 "Preço Atual": round(preco_atual, 2),
-                "Variação 30D %": round(variacao_mes, 2)
+                "Variação 30D %": round(variacao_mes, 2),
+                "DY 12M %": round(dy_calculado, 2),
+                "Última Data-Com": data_com_estimada
             })
-    return pd.DataFrame(dados_mes).sort_values(by="Variação 30D %", ascending=False)
+            
+    df = pd.DataFrame(dados_radar)
+    # Ordena: Maiores quedas primeiro (gerando o ranking de oportunidade/desconto)
+    return df.sort_values(by="Variação 30D %", ascending=True)
 
-df_mercado = processar_dados_mercado()
+df_radar_completo = processar_radar_completo()
 
 # =====================================================================
-# DOCUMENTAÇÃO: CRIAÇÃO DAS ABAS DIRECIONADAS DO SAAS
+# DOCUMENTAÇÃO: INTEGRAÇÃO VISUAL DAS ABAS
 # =====================================================================
-aba_radar, aba_ranking, aba_quedas, aba_noticias = str_app.tabs([
-    "🎯 Radar de Aportes & Data-Com", 
-    "📈 Desempenho 30 Dias", 
-    "🔍 Análise de Quedas Fundamentais", 
-    "📰 Notícias Relevantes"
+aba_radar, aba_ranking, aba_noticias = str_app.tabs([
+    "🎯 Radar Dinâmico de Aportes", 
+    "📈 Visão Geral de Preços", 
+    "📰 Notícias e Fatos Relevantes"
 ])
 
-# -----------------------------------------------------------------
-# ABA INTERATIVA: RADAR DE APORTES (CORRIGIDA PARA TEXTO COMPLETO)
-# -----------------------------------------------------------------
+# ---- ABA 1: RADAR DINÂMICO COMPLETAMENTE AUTOMATIZADO ----
 with aba_radar:
-    str_app.markdown("### 🎯 Onde Aportar Hoje? (Sinalização de Valor vs Data-Com)")
+    str_app.markdown("### 🎯 Ranking de Oportunidades (Baseado em Desconto 30D e Dividendos)")
+    str_app.caption("Ativos no topo da lista são os que mais caíram no mês, abrindo potencial margem de segurança.")
     
-    # Base de dados analítica interna
-    base_radar = {
-        "VALE3": {"data_com": "Agosto/2026", "dy_esperado": "9.20%", "desconto": "18.4%", "situacao": "🟢 Excelente Momento"},
-        "BBAS3": {"data_com": "21/08/2026", "dy_esperado": "10.10%", "desconto": "12.5%", "situacao": "🟢 Bom Momento"},
-        "BTLG11": {"data_com": "31/07/2026", "dy_esperado": "9.15%", "desconto": "2.1%", "situacao": "🟡 Aguardar Correção"},
-        "PETR4": {"data_com": "Agosto/2026", "dy_esperado": "12.80%", "desconto": "1.5%", "situacao": "🟡 Aguardar Correção"},
-        "MXRF11": {"data_com": "31/07/2026", "dy_esperado": "10.40%", "desconto": "-3.0%", "situacao": "🔴 Evitar no Curto Prazo"},
-        "DEVA11": {"data_com": "31/07/2026", "dy_esperado": "14.50%", "desconto": "58.0%", "situacao": "🔴 Evitar / Tese Quebrada"},
-    }
-    
-    # Divisão em colunas visuais
     col_v1, col_v2, col_v3 = str_app.columns(3)
     
+    # Divide a lista completa igualmente entre as 3 colunas visuais baseadas no ranking
+    total_linhas = len(df_radar_completo)
+    terco = total_linhas // 3
+    
+    # 1. Terço superior (Ativos que mais caíram = Oportunidade)
     with col_v1:
-        str_app.success("🟢 TOP APORTES (Descontados)")
-        for ativo, info in base_radar.items():
-            if "🟢" in info["situacao"]:
-                # Escreve o texto completo sem risco de corte na tela do celular
-                str_app.markdown(f"### **{ativo}**")
-                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
-                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | 📉 **Desconto:** {info['desconto']}")
-                str_app.markdown("---")
-                
+        str_app.success("🟢 ZONA DE APORTE (Mais Descontados)")
+        df_zona_aporte = df_radar_completo.iloc[0:terco]
+        for _, linha in df_zona_aporte.iterrows():
+            str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
+            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 📉 **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
+            str_app.markdown(f"💸 **DY Líquido 12M:** {linha['DY 12M %']:.2f}% | 📅 **Última Data-Com:** {linha['Última Data-Com']}")
+            str_app.markdown("---")
+            
+    # 2. Terço do meio (Ativos estáveis = Monitorar)
     with col_v2:
-        str_app.warning("🟡 MONITORAR (Preço Justo)")
-        for ativo, info in base_radar.items():
-            if "🟡" in info["situacao"]:
-                str_app.markdown(f"### **{ativo}**")
-                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
-                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | 📊 **Desconto:** {info['desconto']}")
-                str_app.markdown("---")
-                
+        str_app.warning("🟡 ZONA NEUTRA (Preço Justo)")
+        df_zona_neutra = df_radar_completo.iloc[terco:terco*2]
+        for _, linha in df_zona_neutra.iterrows():
+            str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
+            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 📊 **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
+            str_app.markdown(f"💸 **DY Líquido 12M:** {linha['DY 12M %']:.2f}% | 📅 **Última Data-Com:** {linha['Última Data-Com']}")
+            str_app.markdown("---")
+            
+    # 3. Terço inferior (Ativos que muito subiram = Aguardar correção)
     with col_v3:
-        str_app.error("🔴 CAUTELA (Risco/Esticado)")
-        for ativo, info in base_radar.items():
-            if "🔴" in info["situacao"]:
-                str_app.markdown(f"### **{ativo}**")
-                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
-                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | ⚠️ **Prêmio:** {info['desconto']}")
-                str_app.markdown("---")
+        str_app.error("🔴 ZONA ESTICADA (Aguardar Correção)")
+        df_zona_esticada = df_radar_completo.iloc[terco*2:]
+        for _, linha in df_zona_esticada.iterrows():
+            str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
+            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | ⚠️ **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
+            str_app.markdown(f"💸 **DY Líquido 12M:** {linha['DY 12M %']:.2f}% | 📅 **Última Data-Com:** {linha['Última Data-Com']}")
+            str_app.markdown("---")
 
-# -----------------------------------------------------------------
-# AS DEMAIS ABAS SEGUEM O PADRÃO CONSOLIDADO
-# -----------------------------------------------------------------
+# ---- ABA 2: LISTAGEM EM TABELA COMPLETA ----
 with aba_ranking:
-    str_app.markdown("### 📋 Variação de Preço de Todos os Ativos")
-    str_app.dataframe(df_mercado, use_container_width=True)
+    str_app.markdown("### 📋 Tabela Geral Comparativa (Ordenada do mais Descontado ao mais Esticado)")
+    str_app.dataframe(df_radar_completo, use_container_width=True)
 
-with aba_quedas:
-    str_app.markdown("### 🔍 Raio-X das Maiores Baixas Recentes")
-    str_app.error("DEVA11 — 🔴 Deterioração dos Fundamentos")
-    str_app.table(pd.DataFrame([{"P/VP": 0.41, "DY 12M": "14.20%", "Vacância": "0.00%", "Inadimplência": "8.50%"}]))
-    str_app.success("VALE3 — 🟢 Oportunidade por Ciclo de Commodity")
-    str_app.table(pd.DataFrame([{"P/L": 6.10, "EV/EBITDA": 3.80, "DY 12M": "9.45%"}]))
-
+# ---- ABA 3: MERCADO E FATOS RELEVANTES ----
 with aba_noticias:
-    str_app.markdown("### 📰 Eventos Materiais")
-    str_app.dataframe(pd.DataFrame([{"Ativo": "PETR4", "Evento": "Anúncio de Dividendos Extraordinários", "Impacto": "Forte Positivo"}]), use_container_width=True)
+    str_app.markdown("### 📰 Acompanhamento de Fatos Relevantes")
+    str_app.info("Esta aba pode ser integrada a feeds de notícias automáticos nas próximas atualizações.")
