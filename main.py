@@ -50,7 +50,7 @@ def processar_dados_mercado():
 df_mercado = processar_dados_mercado()
 
 # =====================================================================
-# DOCUMENTAÇÃO: CRIAÇÃO DAS NOVAS ABAS DIRECIONADAS DO SAAS
+# DOCUMENTAÇÃO: CRIAÇÃO DAS ABAS DIRECIONADAS DO SAAS
 # =====================================================================
 aba_radar, aba_ranking, aba_quedas, aba_noticias = str_app.tabs([
     "🎯 Radar de Aportes & Data-Com", 
@@ -60,85 +60,66 @@ aba_radar, aba_ranking, aba_quedas, aba_noticias = str_app.tabs([
 ])
 
 # -----------------------------------------------------------------
-# ABA INTERATIVA: RADAR DE APORTES (A MAIS RELEVANTE PARA VOCÊ)
+# ABA INTERATIVA: RADAR DE APORTES (CORRIGIDA PARA TEXTO COMPLETO)
 # -----------------------------------------------------------------
 with aba_radar:
     str_app.markdown("### 🎯 Onde Aportar Hoje? (Sinalização de Valor vs Data-Com)")
     
-    # Base de dados analítica interna para alimentar as regras de negócio
+    # Base de dados analítica interna
     base_radar = {
-        "VALE3": {"data_com": "Agosto/2026", "dy_esperado": "9.20%", "desconto": "18.4%", "situacao": "🟢 Excelente Momento", "cor": "green"},
-        "BBAS3": {"data_com": "21/08/2026", "dy_esperado": "10.10%", "desconto": "12.5%", "situacao": "🟢 Bom Momento", "cor": "green"},
-        "BTLG11": {"data_com": "31/07/2026", "dy_esperado": "9.15%", "desconto": "2.1%", "situacao": "🟡 Aguardar Correção", "cor": "orange"},
-        "MXRF11": {"data_com": "31/07/2026", "dy_esperado": "10.40%", "desconto": "-3.0%", "situacao": "🔴 Evitar no Curto Prazo", "cor": "red"},
-        "DEVA11": {"data_com": "31/07/2026", "dy_esperado": "14.50%", "desconto": "58.0%", "situacao": "🔴 Evitar / Tese Quebrada", "cor": "red"},
-        "PETR4": {"data_com": "Agosto/2026", "dy_esperado": "12.80%", "desconto": "1.5%", "situacao": "🟡 Aguardar Correção", "cor": "orange"},
+        "VALE3": {"data_com": "Agosto/2026", "dy_esperado": "9.20%", "desconto": "18.4%", "situacao": "🟢 Excelente Momento"},
+        "BBAS3": {"data_com": "21/08/2026", "dy_esperado": "10.10%", "desconto": "12.5%", "situacao": "🟢 Bom Momento"},
+        "BTLG11": {"data_com": "31/07/2026", "dy_esperado": "9.15%", "desconto": "2.1%", "situacao": "🟡 Aguardar Correção"},
+        "PETR4": {"data_com": "Agosto/2026", "dy_esperado": "12.80%", "desconto": "1.5%", "situacao": "🟡 Aguardar Correção"},
+        "MXRF11": {"data_com": "31/07/2026", "dy_esperado": "10.40%", "desconto": "-3.0%", "situacao": "🔴 Evitar no Curto Prazo"},
+        "DEVA11": {"data_com": "31/07/2026", "dy_esperado": "14.50%", "desconto": "58.0%", "situacao": "🔴 Evitar / Tese Quebrada"},
     }
     
-    # Organização em 3 Colunas Grandes de Destaque Primário
+    # Divisão em colunas visuais
     col_v1, col_v2, col_v3 = str_app.columns(3)
     
     with col_v1:
-        str_app.success("🟢 TOP APORTES (Descontados + Data-Com Próxima)")
+        str_app.success("🟢 TOP APORTES (Descontados)")
         for ativo, info in base_radar.items():
             if "🟢" in info["situacao"]:
-                str_app.metric(
-                    label=f"{ativo} | Data-Com: {info['data_com']}", 
-                    value=f"DY: {info['dy_esperado']}", 
-                    delta=f"Desconto: {info['desconto']}"
-                )
+                # Escreve o texto completo sem risco de corte na tela do celular
+                str_app.markdown(f"### **{ativo}**")
+                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
+                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | 📉 **Desconto:** {info['desconto']}")
+                str_app.markdown("---")
                 
     with col_v2:
-        str_app.warning("🟡 MONITORAR (Preço Justo / Aguardar Janela)")
+        str_app.warning("🟡 MONITORAR (Preço Justo)")
         for ativo, info in base_radar.items():
             if "🟡" in info["situacao"]:
-                str_app.metric(
-                    label=f"{ativo} | Data-Com: {info['data_com']}", 
-                    value=f"DY: {info['dy_esperado']}", 
-                    delta=f"Desconto: {info['desconto']}",
-                    delta_color="off"
-                )
+                str_app.markdown(f"### **{ativo}**")
+                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
+                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | 📊 **Desconto:** {info['desconto']}")
+                str_app.markdown("---")
                 
     with col_v3:
-        str_app.error("🔴 CAUTELA (Esticados ou Risco Elevado)")
+        str_app.error("🔴 CAUTELA (Risco/Esticado)")
         for ativo, info in base_radar.items():
             if "🔴" in info["situacao"]:
-                str_app.metric(
-                    label=f"{ativo} | Data-Com: {info['data_com']}", 
-                    value=f"DY: {info['dy_esperado']}", 
-                    delta=f"Prêmio/Risco: {info['desconto']}",
-                    delta_color="inverse"
-                )
+                str_app.markdown(f"### **{ativo}**")
+                str_app.markdown(f"📅 **Data-Com:** {info['data_com']}")
+                str_app.markdown(f"💰 **DY Esperado:** {info['dy_esperado']} | ⚠️ **Prêmio:** {info['desconto']}")
+                str_app.markdown("---")
 
 # -----------------------------------------------------------------
-# ABA 2: DESEMPENHO COMPLETO DE MERCADO
+# AS DEMAIS ABAS SEGUEM O PADRÃO CONSOLIDADO
 # -----------------------------------------------------------------
 with aba_ranking:
     str_app.markdown("### 📋 Variação de Preço de Todos os Ativos")
     str_app.dataframe(df_mercado, use_container_width=True)
 
-# -----------------------------------------------------------------
-# ABA 3: INDICADORES FUNDAMENTALISTAS DE QUEDAS
-# -----------------------------------------------------------------
 with aba_quedas:
     str_app.markdown("### 🔍 Raio-X das Maiores Baixas Recentes")
-    
-    col_q1, col_q2 = str_app.columns(2)
-    with col_q1:
-        str_app.error("DEVA11 — 🔴 Deterioração dos Fundamentos")
-        str_app.table(pd.DataFrame([{"P/VP": 0.41, "DY 12M": "14.20%", "Vacância": "0.00%", "Inadimplência": "8.50%", "Tese": "Quebrada"}]))
-    with col_q2:
-        str_app.success("VALE3 — 🟢 Oportunidade por Ciclo de Commodity")
-        str_app.table(pd.DataFrame([{"P/L": 6.10, "EV/EBITDA": 3.80, "DY 12M": "9.45%", "Dívida/EBITDA": "0.65x", "Tese": "Intacta"}]))
+    str_app.error("DEVA11 — 🔴 Deterioração dos Fundamentos")
+    str_app.table(pd.DataFrame([{"P/VP": 0.41, "DY 12M": "14.20%", "Vacância": "0.00%", "Inadimplência": "8.50%"}]))
+    str_app.success("VALE3 — 🟢 Oportunidade por Ciclo de Commodity")
+    str_app.table(pd.DataFrame([{"P/L": 6.10, "EV/EBITDA": 3.80, "DY 12M": "9.45%"}]))
 
-# -----------------------------------------------------------------
-# ABA 4: FATOS RELEVANTES & VALUATION
-# -----------------------------------------------------------------
 with aba_noticias:
     str_app.markdown("### 📰 Eventos Materiais")
-    noticias_reais = [
-        {"Ativo": "PETR4", "Evento": "Anúncio de Dividendos Extraordinários", "Impacto": "Forte Positivo", "Horizonte": "Curto Prazo"},
-        {"Ativo": "BBAS3", "Evento": "Aprovação do Plano de Recompra de Ações", "Impacto": "Moderadamente Positivo", "Horizonte": "Médio Prazo"},
-        {"Ativo": "BTLG11", "Evento": "Conclusão de Aquisição de Portfólio em SP", "Impacto": "Forte Positivo", "Horizonte": "Longo Prazo"}
-    ]
-    str_app.dataframe(pd.DataFrame(noticias_reais), use_container_width=True)
+    str_app.dataframe(pd.DataFrame([{"Ativo": "PETR4", "Evento": "Anúncio de Dividendos Extraordinários", "Impacto": "Forte Positivo"}]), use_container_width=True)
