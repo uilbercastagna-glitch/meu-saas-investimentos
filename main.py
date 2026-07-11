@@ -2,160 +2,180 @@ import streamlit as str_app  # Interface web do SaaS
 import yfinance as yf        # Coleta de dados da B3
 import pandas as pd          # Manipulação de tabelas
 from datetime import datetime, timedelta
-import calendar
 
 # =====================================================================
-# DOCUMENTAÇÃO: CONFIGURAÇÕES DA PÁGINA DO SAAS
+# CONFIGURAÇÕES DA PÁGINA DO SAAS
 # =====================================================================
-str_app.set_page_config(page_title="SaaS Análise de Carteira", page_icon="📊", layout="wide")
+str_app.set_page_config(page_title="SaaS Carteira Previdenciária", page_icon="📊", layout="wide")
 
-str_app.title("📊 Agente Profissional de Análise de Carteira")
-str_app.subheader("Ações & FIIs — Mercado Brasileiro")
-str_app.caption(f"Painel Atualizado em Tempo Real: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+str_app.title("📊 Agente de Análise Previdenciária — Método Barsi")
+str_app.subheader("Foco em Acumulação de Ativos e Geração de Renda Passiva")
+str_app.caption(f"Painel Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # =====================================================================
-# DOCUMENTAÇÃO: DEFINIÇÃO DOS ATIVOS DA CARTEIRA
+# DEFINIÇÃO DOS ATIVOS DA CARTEIRA
 # =====================================================================
 lista_acoes = ["VALE3.SA", "BBAS3.SA", "BBSE3.SA", "BBDC4.SA", "TAEE11.SA", "ISAE4.SA", "CXSE3.SA", "PETR4.SA"]
 lista_fiis = ["MXRF11.SA", "BTLG11.SA", "CPTS11.SA", "KNSC11.SA", "RBRR11.SA", "VILG11.SA", "DEVA11.SA", "BTAL11.SA", "BRCO11.SA", "VISC11.SA", "SNAG11.SA"]
 todos_ativos = lista_acoes + lista_fiis
 
-# =====================================================================
-# DOCUMENTAÇÃO: FUNÇÃO AUXILIAR - CÁLCULO DO ÚLTIMO DIA ÚTIL DO MÊS
-# =====================================================================
-def obter_ultimo_dia_util_mes_atual():
-    hoje = datetime.now()
-    ano = hoje.year
-    mes = hoje.month
-    
-    # Pega o último dia do mês corrente
-    ultimo_dia = calendar.monthrange(ano, mes)[1]
-    data_final = datetime(ano, mes, ultimo_dia)
-    
-    # Retrocede se cair em fim de semana (Sábado=5, Domingo=6)
-    if data_final.weekday() == 5:  # Sábado
-        data_final -= timedelta(days=1)
-    elif data_final.weekday() == 6:  # Domingo
-        data_final -= timedelta(days=2)
-        
-    return data_final.strftime('%d/%m/%Y')
+# Mapeamento de Dividendos Médios/Projetados por ação (Evita distorções de dividendos extraordinários)
+# Valores estimados baseados em históricos recorrentes. Você pode ajustar estes valores conforme seu estudo!
+dividendos_projetados_acoes = {
+    "VALE3": 4.50,
+    "BBAS3": 4.60,
+    "BBSE3": 3.20,
+    "BBDC4": 1.20,
+    "TAEE11": 3.10,
+    "ISAE4": 1.90,
+    "CXSE3": 1.10,
+    "PETR4": 4.00
+}
 
 # =====================================================================
-# DOCUMENTAÇÃO: MOTOR CORE DE PROCESSAMENTO E VALUATION
+# MOTOR CORE DE PROCESSAMENTO E VALUATION (MÉTODO BARSI)
 # =====================================================================
 @str_app.cache_data(ttl=3600)
-def processar_radar_completo():
-    data_atual = datetime.now()
-    data_30_dias = data_atual - timedelta(days=30)
+def processar_radar_barsi():
     dados_radar = []
     
-    # Mapeamento histórico de meses de anúncios das suas ações (Previsibilidade)
+    # Previsibilidade de anúncios das Ações (Setores BEST)
     meses_historicos_acoes = {
-        "VALE3": "Agosto/2026", "BBAS3": "Agosto/2026", "BBSE3": "Agosto/2026",
-        "BBDC4": "Mensal (Fim do Mês)", "TAEE11": "Agosto/2026", "ISAE4": "Fevereiro/Agosto",
-        "CXSE3": "Novembro/2026", "PETR4": "Agosto/2026"
+        "VALE3": "Março/Agosto", "BBAS3": "Fevereiro/Maio/Agosto/Novembro", "BBSE3": "Fevereiro/Agosto",
+        "BBDC4": "Mensal (Fim do Mês)", "TAEE11": "Maio/Agosto/Novembro", "ISAE4": "Fevereiro/Agosto",
+        "CXSE3": "Maio/Novembro", "PETR4": "Trimestral"
     }
-    
-    ultimo_dia_util = obter_ultimo_dia_util_mes_atual()
     
     for ticker_sa in todos_ativos:
         nome_limpo = ticker_sa.replace(".SA", "")
         tipo = "Ação" if ticker_sa in lista_acoes else "FII"
         ticker_obj = yf.Ticker(ticker_sa)
         
-        hist = ticker_obj.history(start=data_30_dias.strftime('%Y-%m-%d'), end=data_atual.strftime('%Y-%m-%d'))
+        # Coleta do preço mais recente de fechamento
+        hist = ticker_obj.history(period="5d")
         if not hist.empty:
-            preco_30_dias = hist['Close'].iloc[0]
             preco_atual = hist['Close'].iloc[-1]
-            variacao_mes = ((preco_atual - preco_30_dias) / preco_30_dias) * 100
             
-            # Cálculo do DY histórico acumulado de 12 meses
-            dividendos = ticker_obj.dividends
-            dy_calculado = 0.0
-            
-            if not dividendos.empty:
-                dividendos.index = dividendos.index.tz_localize(None)
-                limite_12m = datetime.now() - timedelta(days=365)
-                ultimos_12m = dividendos[dividendos.index > limite_12m]
-                total_proventos = ultimos_12m.sum()
-                if preco_atual > 0:
-                    dy_calculado = (total_proventos / preco_atual) * 100
-
-            # REGRA DE NEGÓCIO DA PRÓXIMA DATA-COM:
-            if tipo == "FII":
-                # Como FIIs pagam mensalmente, a projeção é sempre o fechamento do mês atual
-                proxima_datacom = ultimo_dia_util
-            else:
-                # Busca do nosso mapa de ações previsíveis
+            # Cálculo de Proventos com base na categoria do ativo
+            if tipo == "Ação":
+                # Busca o dividendo médio/projetado histórico para evitar a armadilha do DY passado
+                div_anual_estimado = dividendos_projetados_acoes.get(nome_limpo, 0.0)
+                if div_anual_estimado == 0.0: # Caso falte no dicionário, puxa o histórico de 12 meses
+                    dividendos = ticker_obj.dividends
+                    if not dividendos.empty:
+                        dividendos.index = dividendos.index.tz_localize(None)
+                        limite_12m = datetime.now() - timedelta(days=365)
+                        div_anual_estimado = dividendos[dividendos.index > limite_12m].sum()
+                
+                # Regra do Preço Teto de Barsi (Garantir no mínimo 6% de Retorno)
+                preco_teto = div_anual_estimado / 0.06
                 proxima_datacom = meses_historicos_acoes.get(nome_limpo, "Consultar RI")
+                
+            else:
+                # Regra para FIIs: Como o rendimento é mensal, calculamos com base na constância recente
+                dividendos = ticker_obj.dividends
+                if not dividendos.empty:
+                    # Pega a soma dos últimos 12 meses para os FIIs
+                    dividendos.index = dividendos.index.tz_localize(None)
+                    limite_12m = datetime.now() - timedelta(days=365)
+                    div_anual_estimado = dividendos[dividendos.index > limite_12m].sum()
+                else:
+                    div_anual_estimado = 0.0
+                
+                # Preço teto adaptado para FIIs (Exigência de mercado geralmente maior, ex: 8% ao ano)
+                preco_teto = div_anual_estimado / 0.08
+                proxima_datacom = "Mensal (Base de cada FII)"
+
+            # Cálculos de Métricas Previdenciárias
+            dy_projetado = (div_anual_estimado / preco_atual) * 100 if preco_atual > 0 else 0
+            margem_seguranca = ((preco_teto / preco_atual) - 1) * 100 if preco_atual > 0 else 0
+            
+            # Indicador de Meta: Quantas ações/cotas são necessárias para gerar R$ 100 por mês (R$ 1.200/ano)?
+            acoes_para_meta = 1200 / div_anual_estimado if div_anual_estimado > 0 else 0
+            custo_meta_100 = acoes_para_meta * preco_atual
 
             dados_radar.append({
                 "Ativo": nome_limpo,
                 "Tipo": tipo,
                 "Preço Atual": round(preco_atual, 2),
-                "Variação 30D %": round(variacao_mes, 2),
-                "DY 12M %": round(dy_calculado, 2),
-                "Próxima Data-Com": proxima_datacom
+                "Preço Teto": round(preco_teto, 2),
+                "Margem de Segurança %": round(margem_seguranca, 2),
+                "DY Projetado/Estimado %": round(dy_projetado, 2),
+                "Próxima Data-Com": proxima_datacom,
+                "Custo para R$ 100/mês": round(custo_meta_100, 2)
             })
             
     df = pd.DataFrame(dados_radar)
-    return df.sort_values(by="Variação 30D %", ascending=True)
+    # Regra de Ouro: Ordena sempre pela maior Margem de Segurança disponível
+    return df.sort_values(by="Margem de Segurança %", ascending=False)
 
-df_radar_completo = processar_radar_completo()
+df_radar_barsi = processar_radar_barsi()
 
 # =====================================================================
-# DOCUMENTAÇÃO: INTEGRAÇÃO VISUAL DAS ABAS
+# INTEGRAÇÃO VISUAL DAS ABAS
 # =====================================================================
 aba_radar, aba_ranking, aba_noticias = str_app.tabs([
-    "🎯 Radar Dinâmico de Aportes", 
-    "📈 Visão Geral de Preços", 
-    "📰 Notícias e Fatos Relevantes"
+    "🎯 Radar de Preço Teto Barsi", 
+    "📈 Tabela Geral de Valuation", 
+    "📰 Filosofia de Investimentos"
 ])
 
-# ---- ABA 1: RADAR DINÂMICO COM PRÓXIMA DATA-COM ----
+# ---- ABA 1: RADAR SEPARADO POR MARGEM DE SEGURANÇA ----
 with aba_radar:
-    str_app.markdown("### 🎯 Ranking de Oportunidades (Roteiro de Aportes + Próximas Datas)")
+    str_app.markdown("### 🎯 Roteiro de Aportes Mensais baseado na Margem de Segurança")
     
     col_v1, col_v2, col_v3 = str_app.columns(3)
-    total_linhas = len(df_radar_completo)
-    terco = total_linhas // 3
     
-    # 1. Zona de Aporte
+    # Classificação por Regras Práticas do Value Investing
+    df_zona_aporte = df_radar_barsi[df_radar_barsi["Margem de Segurança %"] > 10]
+    df_zona_neutra = df_radar_barsi[(df_radar_barsi["Margem de Segurança %"] >= 0) & (df_radar_barsi["Margem de Segurança %"] <= 10)]
+    df_zona_esticada = df_radar_barsi[df_radar_barsi["Margem de Segurança %"] < 0]
+    
+    # 1. Zona de Aporte (Margem de segurança expressiva, acima de 10%)
     with col_v1:
-        str_app.success("🟢 ZONA DE APORTE (Mais Descontados)")
-        df_zona_aporte = df_radar_completo.iloc[0:terco]
+        str_app.success(f"🟢 ZONA DE APORTE ({len(df_zona_aporte)} ativos)")
+        str_app.caption("Ativos muito abaixo do Preço Teto. Hora de acumular quantidade de ações!")
         for _, linha in df_zona_aporte.iterrows():
             str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
-            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 📉 **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
-            str_app.markdown(f"💸 **DY 12M:** {linha['DY 12M %']:.2f}% | 📅 **Próxima Data-Com:** {linha['Próxima Data-Com']}")
+            str_app.markdown(f"💰 **Preço Atual:** R$ {linha['Preço Atual']:.2f} | 🎯 **Preço Teto:** R$ {linha['Preço Teto']:.2f}")
+            str_app.markdown(f"🛡️ **Margem de Segurança:** `{linha['Margem de Segurança %']}%`")
+            str_app.markdown(f"💸 **DY Estimado:** {linha['DY Projetado/Estimado %']:.2f}% | 📅 **Meses Data-Com:** {linha['Próxima Data-Com']}")
+            str_app.markdown(f"🧱 **Custo para R$ 100/mês de renda:** R$ {linha['Custo para R$ 100/mês']:.2f}")
             str_app.markdown("---")
             
-    # 2. Zona Neutra
+    # 2. Zona Neutra (Próximo ao preço justo, margem entre 0% e 10%)
     with col_v2:
-        str_app.warning("🟡 ZONA NEUTRA (Preço Justo)")
-        df_zona_neutra = df_radar_completo.iloc[terco:terco*2]
+        str_app.warning(f"🟡 ZONA NEUTRA ({len(df_zona_neutra)} ativos)")
+        str_app.caption("Ativos precificados perto do teto. Comprar apenas se faltar opções na Zona Verde.")
         for _, linha in df_zona_neutra.iterrows():
             str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
-            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 📊 **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
-            str_app.markdown(f"💸 **DY 12M:** {linha['DY 12M %']:.2f}% | 📅 **Próxima Data-Com:** {linha['Próxima Data-Com']}")
+            str_app.markdown(f"💰 **Preço Atual:** R$ {linha['Preço Atual']:.2f} | 🎯 **Preço Teto:** R$ {linha['Preço Teto']:.2f}")
+            str_app.markdown(f"🛡️ **Margem de Segurança:** `{linha['Margem de Segurança %']}%`")
+            str_app.markdown(f"💸 **DY Estimado:** {linha['DY Projetado/Estimado %']:.2f}% | 📅 **Meses Data-Com:** {linha['Próxima Data-Com']}")
             str_app.markdown("---")
             
-    # 3. Zona Esticada
+    # 3. Zona Esticada (Margem negativa, acima do preço teto)
     with col_v3:
-        str_app.error("🔴 ZONA ESTICADA (Aguardar Correção)")
-        df_zona_esticada = df_radar_completo.iloc[terco*2:]
+        str_app.error(f"🔴 ZONA ESTICADA ({len(df_zona_esticada)} ativos)")
+        str_app.caption("Ativos acima do preço teto. O dividendo esperado não garante os 6% mínimos. Aguardar correção.")
         for _, linha in df_zona_esticada.iterrows():
             str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
-            str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | ⚠️ **Variação 30D:** {linha['Variação 30D %']:+.2f}%")
-            str_app.markdown(f"💸 **DY 12M:** {linha['DY 12M %']:.2f}% | 📅 **Próxima Data-Com:** {linha['Próxima Data-Com']}")
+            str_app.markdown(f"💰 **Preço Atual:** R$ {linha['Preço Atual']:.2f} | 🎯 **Preço Teto:** R$ {linha['Preço Teto']:.2f}")
+            str_app.markdown(f"🚨 **Margem de Segurança:** `{linha['Margem de Segurança %']}%`")
+            str_app.markdown(f"💸 **DY Estimado:** {linha['DY Projetado/Estimado %']:.2f}% | 📅 **Meses Data-Com:** {linha['Próxima Data-Com']}")
             str_app.markdown("---")
 
 # ---- ABA 2: LISTAGEM EM TABELA COMPLETA ----
 with aba_ranking:
-    str_app.markdown("### 📋 Tabela Geral Comparativa (Ordenada por Desconto)")
-    str_app.dataframe(df_radar_completo, use_container_width=True)
+    str_app.markdown("### 📋 Painel Comparativo Geral (Ordenado por Margem de Segurança)")
+    str_app.dataframe(df_radar_barsi, use_container_width=True)
 
-# ---- ABA 3: MERCADO E FATOS RELEVANTES ----
+# ---- ABA 3: FILOSOFIA DE INVESTIMENTOS ----
 with aba_noticias:
-    str_app.markdown("### 📰 Acompanhamento de Fatos Relevantes")
-    str_app.info("Aba pronta para receber integrações futuras de notícias.")
+    str_app.markdown("### 📜 Os Pilares do Método Barsi de Geração de Renda")
+    str_app.info(
+        "1. **O foco é na quantidade de ações**, não no patrimônio líquido flutuante.\n"
+        "2. **Não compre a qualquer preço**: O preço teto garante que seu dinheiro compre mais renda por real aplicado.\n"
+        "3. **Priorize os setores BEST**: Bancos, Energia, Saneamento, Telecomunicações e Seguros.\n"
+        "4. **Reinvista os dividendos**: Use a renda gerada pela própria carteira para comprar mais ações dos ativos que estiverem na Zona Verde."
+    )
