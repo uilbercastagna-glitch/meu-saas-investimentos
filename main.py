@@ -1,28 +1,21 @@
+import streamlit as str_app  # Interface web do SaaS
+import yfinance as yf        # Coleta de dados da B3
+import pandas as pd          # Manipulação de tabelas
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo  # Ajuste preciso de fuso horário brasileiro
+
 # =====================================================================
 # CONFIGURAÇÕES DA PÁGINA DO SAAS (FUSO HORÁRIO DE BRASÍLIA AJUSTADO)
 # =====================================================================
 str_app.set_page_config(page_title="SaaS Carteira Previdenciária", page_icon="📊", layout="wide")
 
-# Força o cálculo correto para o Horário de Brasília (GMC-3) independente de onde está o servidor
-horario_brasilia = datetime.utcnow() - timedelta(hours=3)
+# Captura o horário exato de Brasília independente do servidor do Streamlit estar lá fora
+fuso_brasilia = ZoneInfo("America/Sao_Paulo")
+horario_brasilia = datetime.now(fuso_brasilia)
 
 str_app.title("📊 Agente de Análise Previdenciária — Método Barsi")
 str_app.subheader("Foco em Acumulação de Ativos e Geração de Renda Passiva")
 str_app.caption(f"Painel Atualizado (Horário de Brasília): {horario_brasilia.strftime('%d/%m/%Y %H:%M')}")
-
-import streamlit as str_app  # Interface web do SaaS
-import yfinance as yf        # Coleta de dados da B3
-import pandas as pd          # Manipulação de tabelas
-from datetime import datetime, timedelta
-
-# =====================================================================
-# CONFIGURAÇÕES DA PÁGINA DO SAAS
-# =====================================================================
-str_app.set_page_config(page_title="SaaS Carteira Previdenciária", page_icon="📊", layout="wide")
-
-str_app.title("📊 Agente de Análise Previdenciária — Método Barsi")
-str_app.subheader("Foco em Acumulação de Ativos e Geração de Renda Passiva")
-str_app.caption(f"Painel Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # =====================================================================
 # DEFINIÇÃO DOS ATIVOS DA CARTEIRA
