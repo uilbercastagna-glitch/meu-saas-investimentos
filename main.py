@@ -90,7 +90,6 @@ def processar_radar_barsi():
                 acoes_bola_neve = 0
                 custo_bola_neve = 0
 
-            # Dicionário devidamente formatado e fechado
             dados_radar.append({
                 "Ativo": nome_limpo,
                 "Tipo": tipo,
@@ -116,7 +115,6 @@ df_radar_barsi = processar_radar_barsi()
 # =====================================================================
 # INTEGRAÇÃO VISUAL DAS ABAS
 # =====================================================================
-# Chamada completa da função ".tabs([])" restaurada
 aba_radar, aba_ranking, aba_noticias = str_app.tabs([
     "🎯 Radar de Preço Teto Barsi", 
     "📈 Tabela Geral de Valuation", 
@@ -141,4 +139,43 @@ with aba_radar:
             for _, linha in df_zona_aporte.iterrows():
                 str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
                 str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 🎯 **Teto:** R$ {linha['Preço Teto']:.2f}")
-                str_app.markdown(f"🛡️ **Margem:** `{linha['Margem de
+                str_app.markdown(f"🛡️ **Margem:** `{linha['Margem de Segurança %']:.2f}%`")
+                str_app.markdown(f"💸 **DY:** {linha['DY Projetado %']:.2f}% | 📅 **Data-Com:** {linha['Próxima Data-Com']}")
+                str_app.markdown(f"🧱 **Custo p/ R$ 100/mês:** R$ {linha['Custo para R$ 100/mês']:.2f}")
+                str_app.markdown(f"❄️ **Gatilho Bola de Neve:** {linha['Ações p/ Bola de Neve']} {linha['Tipo']}s (Custo: R$ {linha['Custo Autossuficiência']:.2f})")
+                str_app.markdown("---")
+                
+        with col_v2:
+            str_app.warning(f"🟡 ZONA NEUTRA ({len(df_zona_neutra)})")
+            for _, linha in df_zona_neutra.iterrows():
+                str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
+                str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 🎯 **Teto:** R$ {linha['Preço Teto']:.2f}")
+                str_app.markdown(f"🛡️ **Margem:** `{linha['Margem de Segurança %']:.2f}%`")
+                str_app.markdown(f"💸 **DY:** {linha['DY Projetado %']:.2f}% | 📅 **Data-Com:** {linha['Próxima Data-Com']}")
+                str_app.markdown(f"❄️ **Meta Bola de Neve:** {linha['Ações p/ Bola de Neve']} {linha['Tipo']}s")
+                str_app.markdown("---")
+                
+        with col_v3:
+            str_app.error(f"🔴 ZONA ESTICADA ({len(df_zona_esticada)})")
+            for _, linha in df_zona_esticada.iterrows():
+                str_app.markdown(f"### **{linha['Ativo']}** ({linha['Tipo']})")
+                str_app.markdown(f"💰 **Preço:** R$ {linha['Preço Atual']:.2f} | 🎯 **Teto:** R$ {linha['Preço Teto']:.2f}")
+                str_app.markdown(f"🚨 **Margem:** `{linha['Margem de Segurança %']:.2f}%`")
+                str_app.markdown(f"💸 **DY:** {linha['DY Projetado %']:.2f}% | 📅 **Data-Com:** {linha['Próxima Data-Com']}")
+                str_app.markdown("---")
+
+# ---- ABA 2: LISTAGEM EM TABELA COMPLETA ----
+with aba_ranking:
+    str_app.markdown("### 📋 Painel Comparativo Geral")
+    if not df_radar_barsi.empty:
+        str_app.dataframe(df_radar_barsi, use_container_width=True)
+
+# ---- ABA 3: FILOSOFIA DE INVESTIMENTOS ----
+with aba_noticias:
+    str_app.markdown("### 📜 Os Pilares do Método Barsi")
+    str_app.info(
+        "1. **Foco em quantidade de ações**, não no patrimônio flutuante.\n"
+        "2. **Preço Teto Importa**: Garante comprar mais renda por real aplicado.\n"
+        "3. **Setores BEST**: Bancos, Energia, Saneamento, Telecom e Seguros.\n"
+        "4. **Reinvestimento**: Use dividendos para comprar mais ativos baratos."
+    )
