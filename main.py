@@ -63,4 +63,42 @@ def processar_radar_barsi():
                     dividendos = ticker_obj.dividends
                     if not dividendos.empty:
                         dividendos.index = dividendos.index.tz_localize(None)
-                        limite_12m
+                        limite_12m = datetime.now() - timedelta(days=365)
+                        div_anual_estimado = dividendos[dividendos.index > limite_12m].sum()
+                
+                # Preço Teto Barsi Clássico (Mínimo de 6% de rendimento)
+                preco_teto = div_anual_estimado / 0.06
+                proxima_datacom = meses_historicos_acoes.get(nome_limpo, "Consultar RI")
+                
+            else:
+                # Regra customizada para FIIs (Piso de 8% ao ano para segurança)
+                dividendos = ticker_obj.dividends
+                if not dividendos.empty:
+                    dividendos.index = dividendos.index.tz_localize(None)
+                    limite_12m = datetime.now() - timedelta(days=365)
+                    div_anual_estimado = dividendos[dividendos.index > limite_12m].sum()
+                else:
+                    div_anual_estimado = 0.0
+                
+                preco_teto = div_anual_estimado / 0.08
+                proxima_datacom = "Mensal (Base do FII)"
+
+            # Cálculos de Métricas Previdenciárias
+            dy_projetado = (div_anual_estimado / preco_atual) * 100 if preco_atual > 0 else 0
+            margem_seguranca = ((preco_teto / preco_atual) - 1) * 100 if preco_atual > 0 else 0
+            
+            # Custo para gerar R$ 100/mês (R$ 1.200/ano)
+            acoes_para_meta = 1200 / div_anual_estimado if div_anual_estimado > 0 else 0
+            custo_meta_100 = acoes_para_meta * preco_atual
+
+            # GATILHO DA BOLA DE NEVE: Quantas ações para comprar 1 nova por ano sozinha
+            if div_anual_estimado > 0:
+                acoes_bola_neve = preco_atual / div_anual_estimado
+                custo_bola_neve = acoes_bola_neve * preco_atual
+            else:
+                acoes_bola_neve = 0
+                custo_bola_neve = 0
+
+            dados_radar.append({
+                "Ativo": nome_limpo,
+                "Tipo": tipo
