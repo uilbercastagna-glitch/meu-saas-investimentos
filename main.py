@@ -46,9 +46,14 @@ def processar_radar_completo():
             data_com_estimada = "Consultar RI"
             
             if not dividendos.empty:
+                # CORREÇÃO DO ERRO: Removemos o fuso horário do índice para permitir a comparação segura
+                dividendos.index = dividendos.index.tz_localize(None)
+                
                 # Filtra os dividendos pagos nos últimos 365 dias
-                ultimos_12m = dividendos[dividendos.index > (datetime.now() - timedelta(days=365))]
+                limite_12m = datetime.now() - timedelta(days=365)
+                ultimos_12m = dividendos[dividendos.index > limite_12m]
                 total_proventos = ultimos_12m.sum()
+                
                 if preco_atual > 0:
                     dy_calculado = (total_proventos / preco_atual) * 100
                 
