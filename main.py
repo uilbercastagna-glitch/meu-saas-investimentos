@@ -97,6 +97,7 @@ def processar_radar_barsi():
                 "Preço Teto": round(preco_teto, 2),
                 "Margem de Segurança %": round(margem_seguranca, 2),
                 "DY Projetado %": round(dy_projetado, 2),
+                "Dividendo Anual (R$)": round(div_anual_estimado, 2),
                 "Próxima Data-Com": proxima_datacom,
                 "Custo para R$ 100/mês": round(custo_meta_100, 2),
                 "Ações p/ Bola de Neve": int(acoes_bola_neve),
@@ -123,17 +124,50 @@ aba_radar, aba_ranking, aba_noticias = str_app.tabs([
 
 # ---- ABA 1: RADAR SEPARADO POR MARGEM DE SEGURANÇA ----
 with aba_radar:
-    str_app.markdown("### 🎯 Roteiro de Aportes Mensais baseado na Margem de Segurança")
+    str_app.markdown("### 💰 Simulador e Direcionador de Aportes")
+    
+    # Campo interativo para o usuário inserir o valor que tem disponível
+    aporte_mensal = str_app.number_input(
+        "Qual valor você tem disponível para investir agora? (R$)", 
+        min_value=0.0, 
+        value=4000.0, 
+        step=100.0
+    )
     
     if df_radar_barsi.empty:
         str_app.error("Aguardando resposta do servidor do Yahoo Finance. Atualize a página em instantes.")
     else:
-        col_v1, col_v2, col_v3 = str_app.columns(3)
-        
+        # Filtros de margem baseados em regras reais de margem de segurança
         df_zona_aporte = df_radar_barsi[df_radar_barsi["Margem de Segurança %"] > 10]
         df_zona_neutra = df_radar_barsi[(df_radar_barsi["Margem de Segurança %"] >= 0) & (df_radar_barsi["Margem de Segurança %"] <= 10)]
         df_zona_esticada = df_radar_barsi[df_radar_barsi["Margem de Segurança %"] < 0]
+
+        # 🏆 LÓGICA DE RECOMENDAÇÃO DE APORTE (AÇÃO CAMPEÃ)
+        if aporte_mensal > 0:
+            str_app.markdown("---")
+            if not df_zona_aporte.empty:
+                # Pega a ação número 1 da Zona Verde (Maior Margem de Segurança)
+                campea = df_zona_aporte.iloc[0]
+                qtd_comprar = int(aporte_mensal / campea['Preço Atual'])
+                total_investido = qtd_comprar * campea['Preço Atual']
+                troco = aporte_mensal - total_investido
+                renda_anual_gerada = qtd_comprar * campea['Dividendo Anual (R$)']
+                
+                str_app.success(f"🏆 **AÇÃO CAMPEÃ DO MÊS PARA APORTE:** {campea['Ativo']} ({campea['Tipo']})")
+                str_app.write(f"Com a maior margem de segurança atual de **{campea['Margem de Segurança %']:.2f}%**, esta é a indicação matemática do painel para aplicar seus R$ {aporte_mensal:.2f}.")
+                
+                col_r1, col_r2, col_r3 = str_app.columns(3)
+                col_r1.metric("🛒 Quantidade a Comprar", f"{qtd_comprar} ações/cotas")
+                col_r2.metric("💸 Capital Alocado (Troco)", f"R$ {total_investido:.2f} (Sobra: R$ {troco:.2f})")
+                col_r3.metric("📈 Renda Passiva Projetada (Ano)", f"R$ {renda_anual_gerada:.2f}")
+            else:
+                str_app.warning("⚠️ Não há ativos na Zona de Aporte (verde) no momento com a margem exigida. Guarde capital em caixa (renda fixa) ou avalie o topo da Zona Neutra.")
         
+        str_app.markdown("---")
+        str_app.markdown("### 📊 Raio-X da Carteira")
+        col_v1, col_v2, col_v3 = str_app.columns(3)
+        
+        # 1. Zona de Aporte
         with col_v1:
             str_app.success(f"🟢 ZONA DE APORTE ({len(df_zona_aporte)})")
             for _, linha in df_zona_aporte.iterrows():
@@ -145,6 +179,7 @@ with aba_radar:
                 str_app.markdown(f"❄️ **Gatilho Bola de Neve:** {linha['Ações p/ Bola de Neve']} {linha['Tipo']}s (Custo: R$ {linha['Custo Autossuficiência']:.2f})")
                 str_app.markdown("---")
                 
+        # 2. Zona Neutra
         with col_v2:
             str_app.warning(f"🟡 ZONA NEUTRA ({len(df_zona_neutra)})")
             for _, linha in df_zona_neutra.iterrows():
@@ -155,6 +190,7 @@ with aba_radar:
                 str_app.markdown(f"❄️ **Meta Bola de Neve:** {linha['Ações p/ Bola de Neve']} {linha['Tipo']}s")
                 str_app.markdown("---")
                 
+        # 3. Zona Esticada
         with col_v3:
             str_app.error(f"🔴 ZONA ESTICADA ({len(df_zona_esticada)})")
             for _, linha in df_zona_esticada.iterrows():
