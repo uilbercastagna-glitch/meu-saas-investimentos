@@ -101,4 +101,28 @@ def processar_radar_barsi():
 
             dados_radar.append({
                 "Ativo": nome_limpo,
-                "Tipo": tipo
+                "Tipo": tipo,
+                "Preço Atual": round(float(preco_atual), 2),
+                "Preço Teto": round(float(preco_teto), 2),
+                "Margem de Segurança %": round(float(margem_seguranca), 2),
+                "DY Projetado %": round(float(dy_projetado), 2),
+                "Próxima Data-Com": proxima_datacom,
+                "Custo para R$ 100/mês": round(float(custo_meta_100), 2),
+                "Ações p/ Bola de Neve": int(acoes_bola_neve),
+                "Custo Autossuficiência": round(float(custo_bola_neve), 2)
+            })
+        except Exception:
+            # Proteção contra falhas em ativos individuais da API externa
+            continue
+            
+    df = pd.DataFrame(dados_radar)
+    if not df.empty:
+        return df.sort_values(by="Margem de Segurança %", ascending=False)
+    return df
+
+df_radar_barsi = processar_radar_barsi()
+
+# =====================================================================
+# INTEGRAÇÃO VISUAL DAS ABAS
+# =====================================================================
+aba_radar, aba_ranking, aba_noticias = str_app
