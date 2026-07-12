@@ -1,7 +1,17 @@
-# =====================================================================
-# MOTOR DE CÁLCULO: MÉDIA DE 5 ANOS AUTOMATIZADA
-# =====================================================================
-@str_app.cache_data(ttl=3600)
+# 1. IMPORTS SEMPRE NO TOPO DO ARQUIVO
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+
+# 2. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(page_title="Dashboard Barsi", page_icon="📈", layout="wide")
+
+# 3. DEFINIÇÃO DOS ATIVOS
+lista_acoes = ["VALE3.SA", "BBAS3.SA", "BBSE3.SA", "BBDC4.SA", "TAEE11.SA", "ISAE4.SA", "CXSE3.SA", "PETR4.SA"]
+
+# 4. MOTOR DE CÁLCULO (Agora utilizando 'st' e 5 anos)
+@st.cache_data(ttl=3600)
 def processar_radar_barsi():
     dados = []
     for ticker_sa in lista_acoes:
@@ -9,12 +19,14 @@ def processar_radar_barsi():
         ticker_obj = yf.Ticker(ticker_sa)
         
         # Coleta de preço atual
-        preco = float(ticker_obj.history(period="1d")['Close'].iloc[-1])
+        hist = ticker_obj.history(period="1d")
+        if hist.empty: continue
+        preco = float(hist['Close'].iloc[-1])
         
         # Coleta de dividendos históricos
         divs = ticker_obj.dividends
         div_estimado = 0.0
-        fonte = "Sem histórico disponível"
+        fonte = "Sem histórico"
         
         if not divs.empty:
             divs.index = divs.index.tz_localize(None)
@@ -29,16 +41,36 @@ def processar_radar_barsi():
                 div_estimado = float(media_5y)
                 fonte = "Média Histórica (5 Anos)"
         
-        # Cálculo do Preço Teto (Método Barsi: 6% de retorno)
+        # Cálculo Preço Teto
         preco_teto = div_estimado / 0.06
         margem = ((preco_teto / preco) - 1) * 100
         
         dados.append({
             "Ativo": nome, 
-            "Preço": preco, 
-            "Preço Teto": preco_teto,
-            "Margem %": margem, 
-            "Média 5 Anos (R$)": div_estimado, 
+            "Preço": round(preco, 2), 
+            "Preço Teto": round(preco_teto, 2),
+            "Margem %": round(margem, 2), 
+            "Div. Médio 5y (R$)": round(div_estimado, 2), 
             "Fonte": fonte
         })
     return pd.DataFrame(dados)
+
+# 5. INTERFACE
+st.title("📊 Agente de Análise Barsi (Automático)")
+df_resultado = processar_radar_barsi()
+
+aporte = st.number_input("Capital para aportar (R$)", value=4000.0, step=100.0)
+
+if not df_resultado.empty:
+    campea = df_resultado.sort_values("Margem %", ascending=False).iloc[0]
+    
+    st.subheader(f"🏆 Ação Recomendada: {campea['Ativo']}")
+    qtd = int(aporte // campea['Preço'])
+    renda = qtd * campea['Div. Médio 5y (R$)']
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Quantidade a comprar", f"{qtd} ações")
+    c2.metric("Renda Anual Projetada", f"R$ {renda:.2f}")
+    c3.metric("Fonte", campea['Fonte'])
+
+    st.table(df_resultado.sort_values("Margem %", ascending=False))
